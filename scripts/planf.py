@@ -11,9 +11,7 @@ from shapely.affinity import rotate as shp_rotate, translate
 import pyproj
 import folium
 
-# 지구 반지름 (m) - 단순 투영 fallback 시 사용 (현재 UTM 사용으로 거의 사용 안함)
-R_EARTH = 6371000
-
+R_EARTH = 6371000 #필요한가?
 # Siyi A8 Mini Camera Specifications (for 1280x720 resolution)
 SIYI_A8_SENSOR_WIDTH_MM = 7.6
 SIYI_A8_SENSOR_HEIGHT_MM = 5.7
@@ -22,9 +20,6 @@ SIYI_A8_IMAGE_WIDTH_PX = 1280
 SIYI_A8_IMAGE_HEIGHT_PX = 720
 SIYI_A8_TARGET_PIXEL_SIZE_MM = SIYI_A8_SENSOR_WIDTH_MM / SIYI_A8_IMAGE_WIDTH_PX
 
-# 자동 이륙 지점 생성을 위한 상수 (이제 사용 안함, GeoJSON 첫 두 점 사용)
-# TAKEOFF_STANDOFF_DISTANCE_M = 5.0
-# TAKEOFF_SEPARATION_DISTANCE_M = 5.0
 
 def get_utm_transformer(lon, lat):
     """주어진 경위도에 대한 UTM 변환기를 반환합니다."""
@@ -74,20 +69,19 @@ def build_grid(poly_area_wgs, line_spacing_m, side_margin_m, transformer_utm, fi
     if poly_xy.is_empty: return []
     
     theta_deg_to_use = fixed_theta_deg
-    if theta_deg_to_use is None: # 고정 각도가 없으면 MBR에서 계산
+    if theta_deg_to_use is None:
         mbr_xy = poly_xy.minimum_rotated_rectangle
         mbr_coords_xy = list(mbr_xy.exterior.coords)
-        # MBR의 첫번째 변을 기준으로 각도 계산
         dx = mbr_coords_xy[1][0] - mbr_coords_xy[0][0]
         dy = mbr_coords_xy[1][1] - mbr_coords_xy[0][1]
         theta_deg_to_use = math.degrees(math.atan2(dy, dx))
 
-    # 폴리곤을 centroid 기준으로 -theta 회전하여 축 정렬
+
     poly_xy_aligned = shp_rotate(poly_xy, -theta_deg_to_use, origin=poly_xy.centroid)
     minx_a, miny_a, maxx_a, maxy_a = poly_xy_aligned.bounds
 
     pts_aligned_temp = [] # (x,y) 튜플 저장
-    current_y = miny_a + side_margin_m # 첫 라인은 여유만큼 안쪽에서 시작
+    current_y = miny_a + side_margin_m
     x_left = minx_a + side_margin_m
     x_right = maxx_a - side_margin_m
 
@@ -95,20 +89,14 @@ def build_grid(poly_area_wgs, line_spacing_m, side_margin_m, transformer_utm, fi
         # print(f"[-] Warning: Grid area too small for margins/spacing in build_grid. X: {x_left:.1f} to {x_right:.1f}, Y_start: {current_y:.1f}, Y_end: {maxy_a - side_margin_m:.1f}")
         return []
 
-    while current_y <= (maxy_a - side_margin_m): # 마지막 라인 포함하도록 <= 사용
+    while current_y <= (maxy_a - side_margin_m): 
         pts_aligned_temp.append((x_left, current_y))
         pts_aligned_temp.append((x_right, current_y))
         current_y += line_spacing_m
     
     if not pts_aligned_temp: return []
-
-    # 정렬된 그리드 포인트를 원래 폴리곤의 centroid 기준으로 +theta 회전하여 복원
     grid_pts_xy_rotated = [shp_rotate(Point(pt_xy), theta_deg_to_use, origin=poly_xy.centroid) for pt_xy in pts_aligned_temp]
-    
-    # 최종 XY 좌표 (Point 객체에서 좌표 추출) 및 원본 UTM 폴리곤 내 필터링
     grid_pts_xy_final = [(pt.x, pt.y) for pt in grid_pts_xy_rotated if poly_xy.contains(pt)]
-
-    # WGS84로 변환
     grid_pts_wgs = [utm_to_wgs(x_utm, y_utm, transformer_utm) for x_utm, y_utm in grid_pts_xy_final]
     
     return grid_pts_wgs
@@ -137,7 +125,7 @@ def export_qgc_plan(mission_waypoints, takeoff_lon, takeoff_lat, initial_takeoff
 
     def mk_item(idx, cmd, p1, p2, p3, p4, lat, lon, alt):
         return {"id": idx, "type": "SimpleItem", "command": cmd, "frame": 3,
-                "param1": float(p1), "param2": float(p2), "param3": float(p3), "param4": float(p4), # param4를 float으로 변환
+                "param1": float(p1), "param2": float(p2), "param3": float(p3), "param4": float(p4),
                 "coordinate": [float(lat), float(lon), float(alt)], "autoContinue": True}
 
     items = []
@@ -180,25 +168,20 @@ def split_polygon_into_halves(polygon_to_split_wgs, transformer_utm):
     edge2_len = Point(p1_mbr).distance(Point(p2_mbr))
     centroid_xy = mbr_xy.centroid
     min_x_mbr, min_y_mbr, max_x_mbr, max_y_mbr = mbr_xy.bounds
-    # 분할선 길이 조정을 위해 MBR 대각선 길이 사용
-    diag_len_mbr = math.hypot(max_x_mbr - min_x_mbr, max_y_mbr - min_y_mbr) * 1.5 # 충분히 길게
+    diag_len_mbr = math.hypot(max_x_mbr - min_x_mbr, max_y_mbr - min_y_mbr) * 1.5
 
 
-    if edge1_len >= edge2_len: # p0_mbr-p1_mbr 이 장축, 분할선은 이와 수직
-        dx, dy = p1_mbr[0] - p0_mbr[0], p1_mbr[1] - p0_mbr[1] # 장축 방향 벡터
-        s_p1_x, s_p1_y = centroid_xy.x - dy, centroid_xy.y + dx # 수직 방향의 한 점
-        s_p2_x, s_p2_y = centroid_xy.x + dy, centroid_xy.y - dx # 수직 방향의 다른 점
+    if edge1_len >= edge2_len: 
+        dx, dy = p1_mbr[0] - p0_mbr[0], p1_mbr[1] - p0_mbr[1]
+        s_p1_x, s_p1_y = centroid_xy.x - dy, centroid_xy.y + dx 
+        s_p2_x, s_p2_y = centroid_xy.x + dy, centroid_xy.y - dx 
     else: # p1_mbr-p2_mbr 이 장축
         dx, dy = p2_mbr[0] - p1_mbr[0], p2_mbr[1] - p1_mbr[1]
         s_p1_x, s_p1_y = centroid_xy.x - dy, centroid_xy.y + dx
         s_p2_x, s_p2_y = centroid_xy.x + dy, centroid_xy.y - dx
-    
-    # 분할선 벡터 및 길이 정규화/조정
     edge_s_dx, edge_s_dy = s_p2_x - s_p1_x, s_p2_y - s_p1_y
     len_s = math.hypot(edge_s_dx, edge_s_dy)
     norm_factor = diag_len_mbr / len_s if len_s > 1e-9 else 0
-    
-    # 중심에서 양쪽으로 뻗어나가는 분할선 좌표
     actual_p1 = (centroid_xy.x - edge_s_dx * norm_factor / 2 , centroid_xy.y - edge_s_dy * norm_factor / 2)
     actual_p2 = (centroid_xy.x + edge_s_dx * norm_factor / 2 , centroid_xy.y + edge_s_dy * norm_factor / 2)
     splitter_xy = LineString([actual_p1, actual_p2])
@@ -212,11 +195,10 @@ def split_polygon_into_halves(polygon_to_split_wgs, transformer_utm):
             for sub_poly_xy in split_polygons_xy:
                 wgs_coords = [utm_to_wgs(x,y,transformer_utm) for x,y in sub_poly_xy.exterior.coords]
                 sub_polygons_wgs.append(Polygon(wgs_coords))
-            # 면적이 더 큰 폴리곤을 첫번째로 반환 (일관성 시도)
             sub_polygons_wgs.sort(key=lambda p: p.area, reverse=True)
             return sub_polygons_wgs
         else:
-            return [polygon_to_split_wgs] # 분할 실패 시 원본 반환
+            return [polygon_to_split_wgs] 
     except Exception as e:
         return [polygon_to_split_wgs]
 
@@ -246,24 +228,24 @@ def create_mission_preview_html(main_geojson_path, drones_data_for_preview, outp
 
         folium.Marker(
             location=[takeoff_lat, takeoff_lon], popup=f"{drone_id} Takeoff", tooltip=f"{drone_id} Takeoff",
-            icon=folium.Icon(color=path_color, icon="plane", prefix="fa") # Font Awesome 아이콘 사용
+            icon=folium.Icon(color=path_color, icon="plane", prefix="fa") 
         ).add_to(m)
         
-        path_for_folium = [(lat, lon) for lon, lat in flight_path_lonlat] # folium은 (lat,lon) 순서
+        path_for_folium = [(lat, lon) for lon, lat in flight_path_lonlat] 
         
         if path_for_folium:
             folium.PolyLine(
                 locations=path_for_folium, color=path_color, weight=2.5, opacity=0.8, tooltip=f"{drone_id} Path"
             ).add_to(m)
             
-            if len(path_for_folium) > 1: # 이륙 지점 제외, 첫번째 웨이포인트 (그리드 시작점)
+            if len(path_for_folium) > 1:
                  grid_start_folium = path_for_folium[1] 
                  folium.CircleMarker(
                     location=grid_start_folium, radius=4, color=path_color, fill=True, fillColor="white",
                     tooltip=f"{drone_id} Grid Start", popup=f"<b>{drone_id}</b><br>Grid Start"
                  ).add_to(m)
             
-            # 경로 끝점 (착륙 지점) 표시
+
             grid_end_folium = path_for_folium[-1]
             folium.CircleMarker(
                 location=grid_end_folium, radius=4, color=path_color,fill=True,fillColor="black",
@@ -302,7 +284,7 @@ if __name__ == "__main__":
     print(f"[i] Calculated Line Spacing (for grid): {line_spacing_m:.2f} m")
 
     try:
-        with open(args.geojson, 'r', encoding='utf-8') as f: gj_data_for_preview = json.load(f) # 미리보기를 위해 원본 GeoJSON 데이터 로드
+        with open(args.geojson, 'r', encoding='utf-8') as f: gj_data_for_preview = json.load(f) 
         main_polygon_geom_wgs = shape(gj_data_for_preview["features"][0]["geometry"])
         if not main_polygon_geom_wgs.is_valid: main_polygon_geom_wgs = main_polygon_geom_wgs.buffer(0)
         if main_polygon_geom_wgs.is_empty or len(list(main_polygon_geom_wgs.exterior.coords)) < 4:
@@ -315,7 +297,6 @@ if __name__ == "__main__":
         print("[-] Critical Error: Could not establish UTM transformer for main polygon. Exiting.")
         exit(1)
 
-    # 이륙 지점 설정: GeoJSON의 첫 번째와 두 번째 점 사용
     takeoff_points_latlon = [] # (lat, lon) 순서로 저장
     main_coords_wgs = list(main_polygon_geom_wgs.exterior.coords) # [(lon, lat), ...]
     
@@ -324,7 +305,7 @@ if __name__ == "__main__":
         takeoff_points_latlon.append((p0_lat, p0_lon))
         print(f"[i] Drone 1 Takeoff (P0 of GeoJSON): Lat={p0_lat:.6f}, Lon={p0_lon:.6f}")
     if args.num_drones == 2:
-        if len(main_coords_wgs) > 1: # 최소 두 개의 점이 있어야 P1을 사용 가능
+        if len(main_coords_wgs) > 1: 
             p1_lon, p1_lat = main_coords_wgs[1]
             takeoff_points_latlon.append((p1_lat, p1_lon))
             print(f"[i] Drone 2 Takeoff (P1 of GeoJSON): Lat={p1_lat:.6f}, Lon={p1_lon:.6f}")
@@ -332,12 +313,11 @@ if __name__ == "__main__":
             print("[-] Error: Not enough points in GeoJSON for 2nd drone takeoff. Requires at least 2 distinct vertices.")
             exit(1)
     
-    # 메인 폴리곤의 MBR 방향각 계산 (모든 하위 그리드에 동일하게 적용하여 패턴 일관성 시도)
+
     main_poly_xy_coords = [wgs_to_utm(lon, lat, transformer_utm) for lon, lat in main_coords_wgs]
     main_poly_xy = Polygon(main_poly_xy_coords)
     main_mbr_xy = main_poly_xy.minimum_rotated_rectangle
     main_mbr_coords_xy = list(main_mbr_xy.exterior.coords)
-    # MBR의 첫번째 변 기준 방향각
     main_dx = main_mbr_coords_xy[1][0] - main_mbr_coords_xy[0][0]
     main_dy = main_mbr_coords_xy[1][1] - main_mbr_coords_xy[0][1]
     global_grid_theta_deg = math.degrees(math.atan2(main_dy, main_dx))
@@ -403,7 +383,6 @@ if __name__ == "__main__":
 
     if all_drones_preview_data:
         map_center_latlon = (main_centroid_wgs.y, main_centroid_wgs.x) # (lat, lon)
-        # 미리보기를 위해 원본 GeoJSON 파일 경로를 전달 (Folium이 직접 읽도록)
         create_mission_preview_html(args.geojson, all_drones_preview_data, args.preview_html, map_center_latlon)
     else:
         print("[-] No data available to generate HTML preview.")
