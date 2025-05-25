@@ -1,7 +1,7 @@
 # ui/makearea.py
 import folium, sys
 from folium.plugins import Draw
-import webbrowser # Import the webbrowser module
+import webbrowser 
 
 def main(lat, lon, zoom=17):
     m = folium.Map(location=[lat, lon], zoom_start=zoom, tiles='OpenStreetMap')
@@ -15,7 +15,7 @@ def main(lat, lon, zoom=17):
     output_file = "map_rect.html"
     m.save(output_file)
     print(f"► {output_file} 생성 완료.")
-    webbrowser.open(output_file) # Add this line to open the HTML file
+    webbrowser.open(output_file) 
     print(f"► {output_file}을(를) 기본 웹 브라우저에서 열었습니다.")
 
 if __name__ == "__main__":
@@ -27,4 +27,5 @@ if __name__ == "__main__":
     zoom = int(sys.argv[3]) if len(sys.argv) > 3 else 17
     main(lat0, lon0, zoom)
 
-#python makearea.py 36.6284 127.4566 15
+#python makearea.py 36.6284 127.4566 15 
+#python makearea.py lat:=YOUR_LAT lon:=YOUR_LON
