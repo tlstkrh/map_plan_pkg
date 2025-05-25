@@ -1,5 +1,5 @@
 import os
-import sys # sys 모듈 임포트
+import sys 
 from launch import LaunchDescription
 from launch.actions import ExecuteProcess, DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
@@ -14,64 +14,63 @@ def generate_launch_description():
 
     python_executable = sys.executable
 
-    # planf.py를 위한 Launch Arguments 선언
+
     geojson_file_arg = DeclareLaunchArgument(
         'geojson_file',
-        default_value='polygon.geojson', # makearea_launch.py 에서 생성된 기본 파일명
+        default_value='polygon.geojson', 
         description='Path to the GeoJSON file (must exist in CWD or be an absolute path)'
     )
     gsd_arg = DeclareLaunchArgument(
         'gsd',
-        default_value='2.0', # planf.py의 기본값과 다를 수 있으므로 명시
+        default_value='2.0', 
         description='Target GSD (cm/pixel)'
     )
     forward_overlap_arg = DeclareLaunchArgument(
         'forward_overlap',
-        default_value='0.8', # planf.py의 기본값과 다를 수 있으므로 명시
+        default_value='0.8',
         description='Forward overlap ratio (e.g., 0.8 for 80%)'
     )
     side_overlap_arg = DeclareLaunchArgument(
         'side_overlap',
-        default_value='0.7', # planf.py의 기본값과 다를 수 있으므로 명시
+        default_value='0.7', 
         description='Side overlap ratio (e.g., 0.7 for 70%)'
     )
     side_margin_arg = DeclareLaunchArgument(
         'side_margin',
-        default_value='5.0', # planf.py의 기본값
+        default_value='5.0', 
         description='Side margin from polygon edges (meters)'
     )
     initial_takeoff_alt_arg = DeclareLaunchArgument(
         'initial_takeoff_alt',
-        default_value='10.0', # planf.py의 기본값
+        default_value='10.0', 
         description='Initial takeoff altitude from ground (m)'
     )
     cruise_spd_arg = DeclareLaunchArgument(
         'cruise_spd',
-        default_value='5.0', # planf.py의 기본값
+        default_value='5.0', 
         description='Cruise speed (m/s)'
     )
     hover_spd_arg = DeclareLaunchArgument(
         'hover_spd',
-        default_value='2.0', # planf.py의 기본값
+        default_value='2.0', 
         description='Hover speed (m/s)'
     )
     num_drones_arg = DeclareLaunchArgument(
         'num_drones',
-        default_value='1', # planf.py의 기본값은 2였으나, 사용자가 명시하도록 1로 변경
+        default_value='1',
         description='Number of drones/areas to split into (1 or 2 supported by planf.py)'
     )
     out_prefix_arg = DeclareLaunchArgument(
         'out_prefix',
-        default_value='mission_drone_', # planf.py의 기본값은 'mission_drone'
+        default_value='mission_drone_', 
         description='Output .plan file prefix'
     )
     preview_html_arg = DeclareLaunchArgument(
         'preview_html',
-        default_value='mission_preview.html', # planf.py의 기본값
+        default_value='mission_preview.html', 
         description='Output HTML preview filename'
     )
 
-    # planf.py 스크립트 실행 설정
     planf_process = ExecuteProcess(
         cmd=[
             python_executable, planf_script_path,
@@ -87,7 +86,7 @@ def generate_launch_description():
             '--out-prefix', LaunchConfiguration('out_prefix'),
             '--preview-html', LaunchConfiguration('preview_html')
         ],
-        # cwd='.', # 기본적으로 ros2 launch를 실행한 디렉토리에서 실행됩니다.
+        # cwd='.', 
         output='screen',
         shell=False
     )
