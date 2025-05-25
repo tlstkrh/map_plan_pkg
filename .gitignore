@@ -1,0 +1,29 @@
+# ROS 2 빌드 및 설치 관련 파일
+build/
+install/
+log/
+
+# Python 관련 파일
+*.pyc
+__pycache__/
+*.egg-info/
+*.so
+dist/
+*.egg
+pip-wheel-metadata/
+
+# OS 및 에디터 관련 파일
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
+*.bak
+
+# 스크립트 실행 결과물 (저장소에 올릴 필요 없는 경우)
+# map_rect.html
+# mission_preview.html
+# polygon.geojson
+# *.plan
+
+# 기타 임시 파일
